@@ -1,0 +1,6 @@
+streamlit>=1.34
+pandas
+requests
+stripe
+yfinance
+plotly
