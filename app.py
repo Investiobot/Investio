@@ -21,14 +21,11 @@ def check_subscription_from_session():
     if not HAS_STRIPE:
         return True  # Dev-Modus: immer durchlassen
 
-       try:
+    try:
         q = st.query_params  # neue API
         sid = q.get("session_id", None)
         if not sid:
             return False
         sess = stripe.checkout.Session.retrieve(sid, expand=["subscription"])
         sub = sess.get("subscription")
-        return bool(sub and sub.get("status") in ("active", "trialing"))
-    except Exception:
-        return False
-        sess = stripe.checkout.Session.ret
+        return bool(sub and sub.get("status") in ("active", "t
