@@ -3,7 +3,7 @@ import time
 import pandas as pd
 import streamlit as st
 
-# Optional: Stripe nur initialisieren, wenn Secrets vorhanden sind
+# Stripe nur initialisieren, wenn Secrets vorhanden sind
 HAS_STRIPE = all(k in st.secrets for k in ["STRIPE_SECRET_KEY", "STRIPE_PRICE_ID", "APP_BASE_URL"])
 if HAS_STRIPE:
     import stripe
@@ -12,19 +12,17 @@ if HAS_STRIPE:
 st.set_page_config(page_title="Investio – KI-Invest-Bot", layout="wide")
 st.title("📊 Investio – KI-Investitions-Bot")
 
-# --- Paywall / Abo-Check ---
+# --------- Subscription-Check ----------
 def check_subscription_from_session():
-    # Admin-Bypass: Gratiszugang
+    # Admin-Bypass
     if st.session_state.get("is_admin", False):
         return True
 
     if not HAS_STRIPE:
-        st.info("Dev-Modus: Keine Paywall aktiv (Stripe-Secrets fehlen).")
-        return True
+        return True  # Dev-Modus immer durchlassen
 
     try:
-        # FIX: neue API statt experimental_get_query_params
-        q = st.query_params  # liefert ein Mapping[str, str]
+        q = st.query_params  # neue API
         sid = q.get("session_id", None)
         if not sid:
             return False
@@ -37,3 +35,26 @@ def check_subscription_from_session():
 def create_checkout(email: str):
     assert HAS_STRIPE, "Stripe nicht konfiguriert."
     price_id = st.secrets["STRIPE_PRICE_ID"]
+    base = st.secrets["APP_BASE_URL"].rstrip("/")
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=f"{base}?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=base,
+            customer_email=email if email else None,
+            allow_promotion_codes=True,
+        )
+        return session.url
+    except Exception as e:
+        st.error(f"Checkout-Fehler: {e}")
+        return None
+
+# --------- Sidebar ----------
+with st.sidebar:
+    st.header("Zugang")
+
+    # Admin-Login
+    admin_pw = st.text_input("Admin Login", type="password")
+    if admin_pw and "ADMIN_PASS" in st.secrets and admin_pw == st.secrets["ADMIN_PASS"]:
+        st.session_state["is_admin"] = True
