@@ -93,15 +93,15 @@ with st.sidebar:
                     st.warning("Bitte registrieren und Abo abschließen.")
 
         else:  # Registrieren
-    reg_email = st.text_input("E-Mail für Registrierung")
+            reg_email = st.text_input("E-Mail für Registrierung")
 
     # Plan-Auswahl mit Preisen aus Secrets
-    plans = {
-        f"Monatlich – {st.secrets.get('STRIPE_PRICE_MONTHLY', '')}": "Monatlich",
-        f"Jährlich – {st.secrets.get('STRIPE_PRICE_YEARLY', '')}": "Jährlich",
-    }
-    plan_label = st.selectbox("Abo wählen", list(plans.keys()))
-    plan = plans[plan_label]
+            plans = {
+                f"Monatlich – {st.secrets.get('STRIPE_PRICE_MONTHLY', '')}": "Monatlich",
+                f"Jährlich – {st.secrets.get('STRIPE_PRICE_YEARLY', '')}": "Jährlich",
+            }
+            plan_label = st.selectbox("Abo wählen", list(plans.keys()))
+            plan = plans[plan_label]
 
     if st.button("Registrieren & bezahlen"):
         if not reg_email:
