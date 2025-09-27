@@ -48,7 +48,6 @@ def start_checkout(email: str, plan_label: str) -> str | None:
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
-            customer_creation="if_required",
             line_items=[{"price": price_id, "quantity": 1}],
             success_url=f"{APP_BASE_URL}?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=APP_BASE_URL,
@@ -59,6 +58,7 @@ def start_checkout(email: str, plan_label: str) -> str | None:
     except Exception as e:
         st.error(f"Checkout-Fehler: {e}")
         return None
+
 
 def open_billing_portal(customer_id: str) -> str | None:
     if not HAS_STRIPE or not customer_id:
