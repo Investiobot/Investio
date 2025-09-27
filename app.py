@@ -136,7 +136,7 @@ with st.sidebar:
 
         if st.button("Abmelden"):
             _clear_user()
-                    st.rerun()   # statt st.experimental_rerun()
+            st.rerun()   # statt st.experimental_rerun()
 
 
 
