@@ -96,10 +96,11 @@ with st.sidebar:
             reg_email = st.text_input("E-Mail für Registrierung")
 
             # Plan-Auswahl mit Preisen aus Secrets
-            plans = {
-                f"Monatlich – {st.secrets.get('STRIPE_PRICE_MONTHLY', '')}": "Monatlich",
-                f"Jährlich – {st.secrets.get('STRIPE_PRICE_YEARLY', '')}": "Jährlich",
-            }
+              plans = {
+                    f"Monatlich – {st.secrets.get('STRIPE_PRICE_MONTHLY', '')}": "Monatlich",
+                    f"Jährlich – {st.secrets.get('STRIPE_PRICE_YEARLY', '')}\n   💡 25% günstiger": "Jährlich",
+                }
+
             plan_label = st.selectbox("Abo wählen", list(plans.keys()))
             plan = plans[plan_label]
 
