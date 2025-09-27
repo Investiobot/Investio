@@ -93,27 +93,27 @@ with st.sidebar:
                     st.warning("Bitte registrieren und Abo abschließen.")
 
         else:  # Registrieren
-            reg_email = st.text_input("E-Mail für Registrierung")
+    reg_email = st.text_input("E-Mail für Registrierung")
 
-            # Plan-Auswahl mit Preisen aus Secrets
-              plans = {
-                    f"Monatlich – {st.secrets.get('STRIPE_PRICE_MONTHLY', '')}": "Monatlich",
-                    f"Jährlich – {st.secrets.get('STRIPE_PRICE_YEARLY', '')}\n   💡 25% günstiger": "Jährlich",
-                }
+    # Plan-Auswahl mit Preisen aus Secrets
+    plans = {
+        f"Monatlich – {st.secrets.get('STRIPE_PRICE_MONTHLY', '')}": "Monatlich",
+        f"Jährlich – {st.secrets.get('STRIPE_PRICE_YEARLY', '')}": "Jährlich",
+    }
+    plan_label = st.selectbox("Abo wählen", list(plans.keys()))
+    plan = plans[plan_label]
 
-            plan_label = st.selectbox("Abo wählen", list(plans.keys()))
-            plan = plans[plan_label]
+    if st.button("Registrieren & bezahlen"):
+        if not reg_email:
+            st.warning("E-Mail angeben.")
+        elif _is_admin(reg_email):
+            _set_user(reg_email, customer_id=None, subscribed=True)
+            st.success("Admin-Zugang (kostenlos) ✔")
+        else:
+            url = start_checkout(reg_email, plan)
+            if url:
+                st.markdown(f"[➡️ Weiter zur Bezahlung bei Stripe]({url})")
 
-            if st.button("Registrieren & bezahlen"):
-                if not reg_email:
-                    st.warning("E-Mail angeben.")
-                elif _is_admin(reg_email):
-                    _set_user(reg_email, customer_id=None, subscribed=True)
-                    st.success("Admin-Zugang (kostenlos) ✔")
-                else:
-                    url = start_checkout(reg_email, plan)
-                    if url:
-                        st.markdown(f"[➡️ Weiter zur Bezahlung bei Stripe]({url})")
 
     else:
         email = st.session_state.get("user_email", "")
