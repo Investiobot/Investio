@@ -158,4 +158,4 @@ if st.session_state.get("logged_in"):
                 except Exception as e:
                     st.error(f"Fehler bei der Analyse: {e}")
 else:
-    st.info("Bitte einloggen oder registrieren, um Zugriff zu erhalten.") immer joch der fehler
+    st.info("Bitte einloggen oder registrieren, um Zugriff zu erhalten.")
