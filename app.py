@@ -90,8 +90,8 @@ with st.sidebar:
                     st.success("Admin-Zugang (kostenlos) ✔")
                 else:
                     st.warning("Bitte registrieren und Abo abschließen.")
-               else:  # Registrieren
-                reg_email = st.text_input("E-Mail für Registrierung")
+         else:  # Registrieren
+             reg_email = st.text_input("E-Mail für Registrierung")
 
                 # Plan-Auswahl mit Preisen aus Secrets
                 plans = {
