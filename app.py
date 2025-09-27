@@ -1,48 +1,57 @@
 import os
-import time
 import pandas as pd
 import streamlit as st
 
-# Stripe nur initialisieren, wenn Secrets vorhanden sind
-HAS_STRIPE = all(k in st.secrets for k in ["STRIPE_SECRET_KEY", "STRIPE_PRICE_ID", "APP_BASE_URL"])
-if HAS_STRIPE:
-    import stripe
-    stripe.api_key = st.secrets["STRIPE_SECRET_KEY"]
-
+# ---------- Basis ----------
 st.set_page_config(page_title="Investio – KI-Invest-Bot", layout="wide")
 st.title("📊 Investio – KI-Investitions-Bot")
 
-# --------- Subscription-Check ----------
-def check_subscription_from_session():
-    # Wenn Admin → immer Zugang
-    if st.session_state.get("is_admin", False):
-        return True
+# Stripe nur initialisieren, wenn Secrets da sind
+HAS_STRIPE = all(k in st.secrets for k in ["STRIPE_SECRET_KEY", "APP_BASE_URL", "STRIPE_PRICE_ID_MONTHLY", "STRIPE_PRICE_ID_YEARLY"])
+if HAS_STRIPE:
+    import stripe
+    stripe.api_key = st.secrets["STRIPE_SECRET_KEY"]
+else:
+    stripe = None
 
+ADMIN_EMAIL = st.secrets.get("ADMIN_EMAIL", "").lower()
+APP_BASE_URL = st.secrets.get("APP_BASE_URL", "").rstrip("/")
+BILLING_RETURN = st.secrets.get("BILLING_PORTAL_RETURN_URL", APP_BASE_URL)
+
+PRICE_IDS = {
+    "Monatlich": st.secrets.get("STRIPE_PRICE_ID_MONTHLY"),
+    "Jährlich":  st.secrets.get("STRIPE_PRICE_ID_YEARLY"),
+}
+
+# ---------- Helpers ----------
+def _is_admin(email: str) -> bool:
+    return bool(email) and email.lower() == ADMIN_EMAIL
+
+def _set_user(email: str, customer_id: str | None, subscribed: bool):
+    st.session_state["user_email"] = email
+    st.session_state["customer_id"] = customer_id
+    st.session_state["subscribed"] = bool(subscribed)
+    st.session_state["logged_in"] = True
+
+def _clear_user():
+    for k in ["user_email", "customer_id", "subscribed", "logged_in"]:
+        st.session_state.pop(k, None)
+
+def start_checkout(email: str, plan_label: str) -> str | None:
     if not HAS_STRIPE:
-        return True  # Dev-Modus: immer durchlassen
-
-    try:
-        q = st.query_params  # neue API
-        sid = q.get("session_id", None)
-        if not sid:
-            return False
-        sess = stripe.checkout.Session.retrieve(sid, expand=["subscription"])
-        sub = sess.get("subscription")
-        return bool(sub and sub.get("status") in ("active", "trialing"))
-    except Exception:
-        return False
-
-
-def create_checkout(email: str):
-    assert HAS_STRIPE, "Stripe nicht konfiguriert."
-    price_id = st.secrets["STRIPE_PRICE_ID"]
-    base = st.secrets["APP_BASE_URL"].rstrip("/")
+        st.error("Stripe ist nicht konfiguriert.")
+        return None
+    price_id = PRICE_IDS.get(plan_label)
+    if not price_id:
+        st.error("Preis-ID fehlt. Prüfe deine Secrets.")
+        return None
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
+            customer_creation="if_required",
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=f"{base}?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=base,
+            success_url=f"{APP_BASE_URL}?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=APP_BASE_URL,
             customer_email=email if email else None,
             allow_promotion_codes=True,
         )
@@ -51,35 +60,74 @@ def create_checkout(email: str):
         st.error(f"Checkout-Fehler: {e}")
         return None
 
+def open_billing_portal(customer_id: str) -> str | None:
+    if not HAS_STRIPE or not customer_id:
+        return None
+    try:
+        portal = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=BILLING_RETURN or APP_BASE_URL,
+        )
+        return portal.url
+    except Exception as e:
+        st.error(f"Billing-Portal-Fehler: {e}")
+        return None
 
-# --------- Sidebar ----------
+# ---------- Sidebar ----------
 with st.sidebar:
-    st.header("Zugang")
+    st.header("Konto")
 
-    # Admin-Login
-    admin_pw = st.text_input("Admin Login", type="password")
-    if admin_pw and "ADMIN_PASS" in st.secrets and admin_pw == st.secrets["ADMIN_PASS"]:
-        st.session_state["is_admin"] = True
-        st.success("Admin-Modus: Gratiszugang ✔")
+    if not st.session_state.get("logged_in"):
+        tab = st.radio("Zugang", ["Einloggen", "Registrieren"], horizontal=True)
 
-    # Nur wenn kein Admin
-    if not st.session_state.get("is_admin", False):
-        if HAS_STRIPE:
-            email = st.text_input("E-Mail für Abo", "")
-            if st.button("🔒 Abo abschließen"):
-                url = create_checkout(email)
-                if url:
-                    st.markdown(f"[➡️ Zum Stripe-Checkout]({url})")
-            st.caption("Nach erfolgreichem Checkout kommst du zurück – Zugang frei.")
+        if tab == "Einloggen":
+            email_login = st.text_input("E-Mail")
+            if st.button("Einloggen"):
+                if not email_login:
+                    st.warning("E-Mail eingeben.")
+                elif _is_admin(email_login):
+                    _set_user(email_login, customer_id=None, subscribed=True)
+                    st.success("Admin-Zugang (kostenlos) ✔")
+                else:
+                    st.warning("Bitte registrieren und Abo abschließen.")
         else:
-            st.info("Dev-Modus: Keine Paywall aktiv.")
+            reg_email = st.text_input("E-Mail für Registrierung")
+            plan = st.selectbox("Abo wählen", ["Monatlich", "Jährlich"])
+            if st.button("Registrieren & bezahlen"):
+                if not reg_email:
+                    st.warning("E-Mail angeben.")
+                elif _is_admin(reg_email):
+                    _set_user(reg_email, customer_id=None, subscribed=True)
+                    st.success("Admin-Zugang (kostenlos) ✔")
+                else:
+                    url = start_checkout(reg_email, plan)
+                    if url:
+                        st.markdown(f"[➡️ Weiter zur Bezahlung bei Stripe]({url})")
+    else:
+        email = st.session_state.get("user_email", "")
+        subscribed = bool(st.session_state.get("subscribed"))
+        customer_id = st.session_state.get("customer_id")
 
+        st.markdown(f"**Eingeloggt als:** {email or 'unbekannt'}")
+        if _is_admin(email):
+            st.success("Status: Admin (kostenlos)")
+        elif subscribed:
+            st.success("Status: Abo aktiv")
+        else:
+            st.warning("Status: Kein aktives Abo")
 
-# --------- Inhalt ----------
-subscribed = check_subscription_from_session()
+        if subscribed and customer_id:
+            if st.button("Abo verwalten / kündigen"):
+                portal_url = open_billing_portal(customer_id)
+                if portal_url:
+                    st.markdown(f"[➡️ Zum Abo-Portal]({portal_url})")
 
-# Eingabefeld immer anzeigen, wenn Admin oder subscribed
-if subscribed or st.session_state.get("is_admin", False):
+        if st.button("Abmelden"):
+            _clear_user()
+            st.experimental_rerun()
+
+# ---------- Inhalt ----------
+if st.session_state.get("logged_in"):
     st.subheader("Analyse")
     ticker = st.text_input("Ticker (z. B. AAPL, TSLA, RHM, PLTR)")
     if st.button("Analysieren"):
@@ -98,4 +146,4 @@ if subscribed or st.session_state.get("is_admin", False):
                 except Exception as e:
                     st.error(f"Fehler bei der Analyse: {e}")
 else:
-    st.info("Kein Zugang: Bitte Abo abschließen oder im Admin-Modus einloggen.")
+    st.info("Bitte einloggen oder registrieren, um Zugriff zu erhalten.")
